@@ -1,0 +1,45 @@
+from rest_framework.generics import CreateAPIView, ListAPIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.conf import settings
+from google.cloud import storage
+
+from .models import Video
+from .serializers import VideoSerializer
+
+class VideoUploadView(CreateAPIView):
+    queryset = Video.objects.all()
+    serializer_class = VideoSerializer
+
+    def create(self, request, *args, **kwargs):
+        title = request.data.get("title", "Untitled")
+        filename = request.data.get("filename", "upload.mp4")
+        size = request.data.get("size")  # optional, in bytes
+        content_type = request.data.get("content_type", "video/mp4")
+
+        # Use GS_CREDENTIALS from settings
+        client = storage.Client(credentials=settings.GS_CREDENTIALS)
+        bucket = client.bucket(settings.GS_BUCKET_NAME)
+        blob = bucket.blob(f"videos/{filename}")
+
+        # Generate resumable upload session URL
+        upload_url = blob.create_resumable_upload_session(
+            content_type=content_type,
+            size=int(size) if size else None,
+            timeout=600,
+            checksum="auto",
+        )
+
+        # Save metadata in DB
+        video = Video.objects.create(title=title, file=f"videos/{filename}")
+        serializer = self.get_serializer(video)
+
+        return Response(
+            {"video": serializer.data, "upload_url": upload_url},
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class VideoListView(ListAPIView):
+    queryset = Video.objects.all()
+    serializer_class = VideoSerializer
