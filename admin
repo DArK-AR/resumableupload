@@ -1,0 +1,9 @@
+# storage/admin.py
+from django.contrib import admin
+from .models import Video
+
+@admin.register(Video)
+class VideoAdmin(admin.ModelAdmin):
+    list_display = ("id", "title", "file", "uploaded_at")   # columns shown in admin list
+    search_fields = ("title",)                              # add search by title
+    list_filter = ("uploaded_at",)                          # filter by upload date
